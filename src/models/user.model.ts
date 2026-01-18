@@ -1,8 +1,56 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import mongoose from "mongoose";
+import mongoose, {
+  Types,
+  type HydratedDocument,
+  type SaveOptions,
+} from "mongoose";
 
-const userSchema = new mongoose.Schema(
+export enum Role {
+  STUDENT = "student",
+  INSTRUCTOR = "instructor",
+  ADMIN = "admin",
+}
+
+export interface IUser {
+  name?: string;
+  email: string;
+  password: string;
+  role?: Role;
+  avatar?: string;
+  bio?: string;
+  enrolledCourses?: {
+    course: Types.ObjectId;
+  }[];
+  enrolledAt?: Date;
+  createdCourses?: {
+    course: Types.ObjectId;
+  }[];
+  resetPasswordToken?: string;
+  resetPasswordTokenExpiry?: Date;
+  lastActive?: Date;
+}
+
+export interface IUserMethods {
+  comparePassword(password: string): Promise<boolean>;
+  getResetPasswordToken(): Promise<string>;
+  updateLastActive(): Promise<void>;
+}
+
+export interface IUserVirtuals {
+  totalEnrolledCourses: number;
+}
+
+export type TUserModel = mongoose.Model<IUser, {}, IUserMethods, IUserVirtuals>;
+type TUserDoc = HydratedDocument<IUser, IUserMethods, {}, IUserVirtuals>;
+
+const userSchema = new mongoose.Schema<
+  IUser,
+  TUserModel,
+  IUserMethods,
+  {},
+  IUserVirtuals
+>(
   {
     name: {
       type: String,
@@ -27,10 +75,10 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: {
-        values: ["student", "instructor", "admin"],
+        values: Object.values(Role),
         message: "Please select a valid role",
       },
-      default: "student",
+      default: Role.STUDENT,
     },
     avatar: {
       type: String,
@@ -76,24 +124,25 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
-userSchema.pre("save", async function (next) {
+//hooks
+userSchema.pre("save", async function (this: TUserDoc) {
   if (!this.isModified("password")) {
-    return next();
+    return;
   }
 
   const hashedPassword = await bcrypt.hash(this.password, 12);
   this.password = hashedPassword;
-  next();
 });
 
-userSchema.methods.comparePassword = async function (password) {
+//methods
+userSchema.methods.comparePassword = async function (password: string) {
   return await bcrypt.compare(password, this.password);
 };
 
-userSchema.methods.getResetPasswordToken = async function () {
+userSchema.methods.getResetPasswordToken = async function (this: TUserDoc) {
   const token = crypto.randomBytes(20).toString("hex");
   this.resetPasswordToken = crypto
     .createHash("sha256")
@@ -101,16 +150,18 @@ userSchema.methods.getResetPasswordToken = async function () {
     .digest("hex");
 
   this.resetPasswordTokenExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10min
-  this.save({ validateBeforeSave: false });
-  return this.resetPasswordToken;
+  await this.save({ validateBeforeSave: false });
+  return token;
 };
 
-userSchema.methods.updateLastActive = async function () {
-  this.lastActive = Date.now();
-  return this.save({ validateBeforeSave: false });
+userSchema.methods.updateLastActive = async function (this: TUserDoc) {
+  this.lastActive = new Date(Date.now());
+  await this.save({ validateBeforeSave: false });
 };
 
-userSchema.virtual("totalEnrolledCourses").get(function () {
-  return this.enrolledCourses.length;
+//virtuals
+userSchema.virtual("totalEnrolledCourses").get(function (this: TUserDoc) {
+  return this?.enrolledCourses?.length || 0;
 });
-export const User = mongoose.model("User", userSchema);
+
+export const User = mongoose.model<IUser, TUserModel>("User", userSchema);

@@ -1,6 +1,33 @@
-import mongoose from "mongoose";
+import mongoose, { type HydratedDocument } from "mongoose";
 
-const lectureSchema = new mongoose.Schema(
+export interface ILecture {
+  title: string;
+  description: string;
+  videoUrl: string;
+  duration: number;
+  isPreview: boolean;
+  publicId: string;
+  order: number;
+}
+
+export interface ILectureMethods {}
+export interface ILectureVirtuals {}
+
+export type TLectureModel = mongoose.Model<
+  ILecture,
+  {},
+  ILectureMethods,
+  ILectureVirtuals
+>;
+export type TLectureDoc = HydratedDocument<ILecture, ILectureMethods>;
+
+const lectureSchema = new mongoose.Schema<
+  ILecture,
+  TLectureModel,
+  ILectureMethods,
+  {},
+  ILectureVirtuals
+>(
   {
     title: {
       type: String,
@@ -39,14 +66,17 @@ const lectureSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
-lectureSchema.pre("save", function (next) {
+lectureSchema.pre("save", function (this: TLectureDoc) {
   if (this.duration) {
     this.duration = Math.round(this.duration * 100) / 100;
   }
-  return next();
+  return;
 });
 
-export const Lecture = mongoose.model("Lecture", lectureSchema);
+export const Lecture = mongoose.model<ILecture, TLectureModel>(
+  "Lecture",
+  lectureSchema,
+);

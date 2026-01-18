@@ -1,6 +1,56 @@
-import mongoose from "mongoose";
+import mongoose, { type Document, type Types } from "mongoose";
+import { User } from "./user.model.js";
+import { Lecture } from "./lecture.model.js";
 
-const courseSchema = new mongoose.Schema(
+export enum CourseLevel {
+  BEGINNER = "beginner",
+  INTERMEDIATE = "intermediate",
+  ADVANCE = "advance",
+}
+
+export interface ICourse {
+  title: string;
+  subtitle: string;
+  description: string;
+  category: string;
+  level: CourseLevel;
+  price: number;
+  thumbnail: string;
+  enrolledStudents: {
+    student: Types.ObjectId;
+    rating?: number;
+  }[];
+  lectures: {
+    lecture: Types.ObjectId;
+  }[];
+  instructor: Types.ObjectId;
+  isPublished: boolean;
+  totalLectures: number;
+  totalDuration: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ICourseMethods {}
+export interface ICourseVirtuals {
+  averageRating: number;
+}
+
+type TCourseModel = mongoose.Model<
+  ICourse,
+  {},
+  ICourseMethods,
+  ICourseVirtuals
+>;
+
+type TCourseDoc = mongoose.HydratedDocument<ICourse, ICourseMethods>;
+const courseSchema = new mongoose.Schema<
+  ICourse,
+  TCourseModel,
+  ICourseMethods,
+  {},
+  ICourseVirtuals
+>(
   {
     title: {
       type: String,
@@ -28,10 +78,10 @@ const courseSchema = new mongoose.Schema(
     level: {
       type: String,
       enum: {
-        values: ["beginner", "intermediate", "advance"],
+        values: Object.values(CourseLevel),
         message: "a course level is required",
       },
-      default: "beginner",
+      default: CourseLevel.BEGINNER,
     },
     price: {
       type: Number,
@@ -85,28 +135,31 @@ const courseSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
-courseSchema.pre("save", function (next) {
+courseSchema.pre("save", function (this: TCourseDoc) {
   if (this.lectures) {
     this.totalLectures = this.lectures.length;
   }
-  return next();
 });
 
-courseSchema.virtual("averageRating").get(function () {
+courseSchema.virtual("averageRating").get(function (this: TCourseDoc) {
   const ratedStudents = this.enrolledStudents.filter(
-    (student) => student.rating
+    (student): student is typeof student & { rating: number } =>
+      !!student.rating,
   );
 
   if (ratedStudents.length === 0) return 0;
 
   const totalRating = ratedStudents.reduce(
     (sum, student) => sum + student.rating,
-    0
+    0,
   );
   return Math.round((totalRating / ratedStudents.length) * 10) / 10;
 });
 
-export const Course = mongoose.model("Course", courseSchema);
+export const Course = mongoose.model<ICourse, TCourseModel>(
+  "Course",
+  courseSchema,
+);

@@ -3,6 +3,11 @@ import mongoose from "mongoose";
 class DbConnection {
   static MAX_RETRIES = 3;
   static RETRY_INTERVAL = 5000; // 5 sec
+
+  private isConnected: boolean;
+  private retryCount: number;
+  private _closing: boolean;
+
   constructor() {
     this.isConnected = false;
     this.retryCount = 0;
@@ -22,7 +27,7 @@ class DbConnection {
       }
     });
 
-    mongoose.connection.on("error", (err) => {
+    mongoose.connection.on("error", (err: Error) => {
       this.isConnected = false;
       console.log("ERROR: ERROR OCCURRED CONNECTING MONGODB", err);
     });
@@ -42,7 +47,7 @@ class DbConnection {
         throw new Error("MONGO_URI missing");
       }
 
-      const configOptions = {
+      const configOptions: mongoose.ConnectOptions = {
         family: 4,
         maxPoolSize: 10,
         //defaults
@@ -75,10 +80,10 @@ class DbConnection {
 
     this.retryCount++;
     console.log(
-      `Retrying connection... (${this.retryCount}/${DbConnection.MAX_RETRIES})`
+      `Retrying connection... (${this.retryCount}/${DbConnection.MAX_RETRIES})`,
     );
     await new Promise((resolve) =>
-      setTimeout(resolve, DbConnection.RETRY_INTERVAL)
+      setTimeout(resolve, DbConnection.RETRY_INTERVAL),
     );
 
     await this.connect();

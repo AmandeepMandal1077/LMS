@@ -1,4 +1,8 @@
-import express from "express";
+import express, {
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import ExpressMongoSanitize from "express-mongo-sanitize";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
@@ -7,6 +11,12 @@ import morgan from "morgan";
 import hpp from "hpp";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+
+//routers
+import healthCheckRouter from "./routes/health.route.js";
+import type { ApiError } from "./utils/apiError.js";
+
+//env config
 dotenv.config();
 
 const app = express();
@@ -24,7 +34,7 @@ app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, //15 min
     limit: 100,
-  })
+  }),
 );
 
 //body-parsing
@@ -44,8 +54,11 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+//routes
+app.use("/health", healthCheckRouter);
+
 //failed route
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   res.status(404).json({
     status: "error",
     message: "Page not found",
@@ -53,10 +66,10 @@ app.use((req, res, next) => {
 });
 
 //Error handler
-app.use((err, req, res, next) => {
+app.use((err: ApiError, req: Request, res: Response, next: NextFunction) => {
   console.error(err.stack);
 
-  const statusCode = err.status || 500;
+  const statusCode = err.statusCode || 500;
   res.status(statusCode).json({
     success: "error",
     message: err.message || "Internal Server Error",
