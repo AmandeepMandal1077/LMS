@@ -1,11 +1,8 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import mongoose, {
-  Types,
-  type HydratedDocument,
-  type SaveOptions,
-} from "mongoose";
+import mongoose, { Types, type HydratedDocument } from "mongoose";
 
+//TODO: Remove role field to a new model, as an instructor could be a student too
 export enum Role {
   STUDENT = "student",
   INSTRUCTOR = "instructor",
@@ -13,10 +10,10 @@ export enum Role {
 }
 
 export interface IUser {
-  name?: string;
+  name: string;
   email: string;
   password: string;
-  role?: Role;
+  role: Role;
   avatar?: string;
   bio?: string;
   enrolledCourses?: {
@@ -33,6 +30,7 @@ export interface IUser {
 
 export interface IUserMethods {
   comparePassword(password: string): Promise<boolean>;
+  compareResetPasswordToken(token: string): Promise<boolean>;
   getResetPasswordToken(): Promise<string>;
   updateLastActive(): Promise<void>;
 }
@@ -70,6 +68,7 @@ const userSchema = new mongoose.Schema<
       required: [true, "Password is required"],
       trim: true,
       minLength: [8, "Password must be atleast 8 characters long"],
+      maxLength: [20, "Password must be atmost 20 characters long"],
       select: false,
     },
     role: {
@@ -122,6 +121,7 @@ const userSchema = new mongoose.Schema<
   },
   {
     timestamps: true,
+    id: false,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
   },
@@ -138,7 +138,10 @@ userSchema.pre("save", async function (this: TUserDoc) {
 });
 
 //methods
-userSchema.methods.comparePassword = async function (password: string) {
+userSchema.methods.comparePassword = async function (
+  this: TUserDoc,
+  password: string,
+) {
   return await bcrypt.compare(password, this.password);
 };
 
@@ -152,6 +155,14 @@ userSchema.methods.getResetPasswordToken = async function (this: TUserDoc) {
   this.resetPasswordTokenExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10min
   await this.save({ validateBeforeSave: false });
   return token;
+};
+
+userSchema.methods.compareResetPasswordToken = async function (
+  this: TUserDoc,
+  token: string,
+) {
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+  return hashedToken === this.resetPasswordToken;
 };
 
 userSchema.methods.updateLastActive = async function (this: TUserDoc) {

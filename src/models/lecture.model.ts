@@ -2,12 +2,14 @@ import mongoose, { type HydratedDocument } from "mongoose";
 
 export interface ILecture {
   title: string;
+  slug: string;
+  courseId: mongoose.Types.ObjectId;
   description: string;
   videoUrl: string;
-  duration: number;
-  isPreview: boolean;
+  duration?: number;
+  isPreview?: boolean;
   publicId: string;
-  order: number;
+  order?: number;
 }
 
 export interface ILectureMethods {}
@@ -31,15 +33,25 @@ const lectureSchema = new mongoose.Schema<
   {
     title: {
       type: String,
-      required: [true, "title is required"],
       maxLength: [50, "title length can be atmost 50 characters long"],
       trim: true,
+      required: [true, "title is required"],
+    },
+    slug: {
+      type: String,
+      required: [true, "slug is required"],
+      trim: true,
+    },
+    courseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      required: [true, "course id is required"],
     },
     description: {
       type: String,
-      required: [true, "description is required"],
       maxLength: [100, "description length can be atmost 100 characters long"],
       trim: true,
+      required: [true, "description is required"],
     },
     videoUrl: {
       type: String,
@@ -59,15 +71,24 @@ const lectureSchema = new mongoose.Schema<
     },
     order: {
       type: Number,
-      required: [true, "order is required"],
+      // required: [true, "order is required"],
     },
   },
   {
+    id: false,
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
   },
 );
+
+lectureSchema.index({ courseId: 1, slug: 1 }, { unique: true });
+
+lectureSchema.pre("validate", function (this: TLectureDoc) {
+  if (this.isModified("title")) {
+    this.slug = this.title.trim().toLowerCase().replace(/ /g, "-");
+  }
+});
 
 lectureSchema.pre("save", function (this: TLectureDoc) {
   if (this.duration) {

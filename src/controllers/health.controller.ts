@@ -3,7 +3,7 @@ import { connectionStatus } from "../database/db.js";
 
 import { type Request, type Response } from "express";
 
-const healthCheck = asyncHandler(async (req: Request, res: Response) => {
+const healthCheck = asyncHandler(async (_: Request, res: Response) => {
   const dbStatus = connectionStatus();
 
   const healthStatus = {

@@ -1,3 +1,7 @@
+import dotenv from "dotenv";
+//env config
+dotenv.config();
+
 import express, {
   type Request,
   type Response,
@@ -6,18 +10,24 @@ import express, {
 import ExpressMongoSanitize from "express-mongo-sanitize";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
-import dotenv from "dotenv";
+
 import morgan from "morgan";
 import hpp from "hpp";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
 //routers
-import healthCheckRouter from "./routes/health.route.js";
-import type { ApiError } from "./utils/apiError.js";
+import healthCheckRouter from "./routes/health.routes.js";
+import userRouter from "./routes/user.route.js";
+import stripePaymentRouter from "./routes/purchaseCourse.route.js";
+import courseRouter from "./routes/course.route.js";
+import lectureRouter from "./routes/lecture.route.js";
+import mediaRouter from "./routes/media.route.js";
 
-//env config
-dotenv.config();
+import type { ApiError } from "./utils/apiError.js";
+import connectdb from "./database/db.js";
+import { handleStripeWebhook } from "./controllers/coursePurchase.controller.js";
+import { handleCloudinaryWebhook } from "./controllers/media.controller.js";
 
 const app = express();
 
@@ -29,21 +39,36 @@ if (process.env.NODE_ENV === "development") {
 //security
 app.use(hpp());
 app.use(helmet());
-app.use(
-  "/api",
-  rateLimit({
-    windowMs: 15 * 60 * 1000, //15 min
-    limit: 100,
-  }),
-);
+// app.use(
+//   "/api",
+//   rateLimit({
+//     windowMs: 15 * 60 * 1000, //15 min
+//     limit: 100,
+//   }),
+// );
 
 //body-parsing
+app.post(
+  "/api/v1/payments/webhook",
+  express.raw({ type: "application/json" }),
+  handleStripeWebhook,
+);
+app.post(
+  "/api/v1/media/webhook",
+  express.raw({ type: "application/json" }),
+  handleCloudinaryWebhook,
+);
 app.use(express.json({ limit: "20kb" }));
 app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 app.use(cookieParser());
 
 //data sanitization
-app.use(ExpressMongoSanitize());
+app.use((req, res, next) => {
+  if (req.body) ExpressMongoSanitize.sanitize(req.body);
+  if (req.params) ExpressMongoSanitize.sanitize(req.params);
+  if (req.query) ExpressMongoSanitize.sanitize(req.query);
+  next();
+});
 
 //cors
 const corsOptions = {
@@ -54,8 +79,15 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// connectdb(); // connection moved to index.ts
+
 //routes
 app.use("/health", healthCheckRouter);
+app.use("/api/v1/users", userRouter);
+app.use("/api/v1/payments", stripePaymentRouter);
+app.use("/api/v1/courses", courseRouter);
+app.use("/api/v1/lecture", lectureRouter);
+app.use("/api/v1/media", mediaRouter);
 
 //failed route
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -67,7 +99,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 //Error handler
 app.use((err: ApiError, req: Request, res: Response, next: NextFunction) => {
+  // if (err.statusCode === 500) {
   console.error(err.stack);
+  // }
 
   const statusCode = err.statusCode || 500;
   res.status(statusCode).json({

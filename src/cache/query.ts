@@ -1,0 +1,30 @@
+import cache from "./redis-setup.js";
+
+export const setJSON = async <T>(
+  key: string,
+  value: T,
+  expireAt: Date | null = null,
+) => {
+  const json = JSON.stringify(value);
+
+  if (expireAt) {
+    await cache.set(key, json, {
+      expiration: {
+        type: "PX",
+        value: expireAt.getTime() - Date.now(),
+      },
+    });
+  } else {
+    await cache.set(key, json);
+  }
+};
+
+export const getJSON = async <T>(key: string) => {
+  const type = await cache.type(key);
+
+  if (type !== "string") return null;
+
+  const json = await cache.get(key);
+  if (!json) return null;
+  return JSON.parse(json) as T;
+};

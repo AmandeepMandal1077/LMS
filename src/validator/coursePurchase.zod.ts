@@ -25,4 +25,20 @@ export const coursePurchaseSchema = z.object({
   metadata: z.map(z.string(), z.string()).optional(),
 });
 
-export { coursePurchaseSchema as coursePurchaseValidator };
+export const webhookEventSchema = z.object({
+  metadata: z.object({
+    courseId: z.string({ error: "Course ID is required in metadata" }),
+    userId: z.string({ error: "User ID is required in metadata" }),
+  }),
+  amount_total: z.number({ error: "Amount total is required" }),
+  currency: z.string({ error: "Currency is required" }),
+  payment_method_types: z
+    .array(z.string())
+    .min(1, { message: "At least one payment method type is required" }),
+  id: z.string({ error: "Payment ID is required" }),
+});
+
+export {
+  coursePurchaseSchema as coursePurchaseValidator,
+  webhookEventSchema as stripeWebhookEventValidator,
+};

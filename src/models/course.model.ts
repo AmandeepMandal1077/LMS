@@ -9,6 +9,7 @@ export enum CourseLevel {
 }
 
 export interface ICourse {
+  slug: string;
   title: string;
   subtitle: string;
   description: string;
@@ -20,9 +21,7 @@ export interface ICourse {
     student: Types.ObjectId;
     rating?: number;
   }[];
-  lectures: {
-    lecture: Types.ObjectId;
-  }[];
+  lectures: Types.ObjectId[];
   instructor: Types.ObjectId;
   isPublished: boolean;
   totalLectures: number;
@@ -52,6 +51,11 @@ const courseSchema = new mongoose.Schema<
   ICourseVirtuals
 >(
   {
+    slug: {
+      type: String,
+      unique: true,
+      required: [true, "slug is required"],
+    },
     title: {
       type: String,
       required: [true, "title is required"],
@@ -92,27 +96,31 @@ const courseSchema = new mongoose.Schema<
       type: String,
       required: [true, "thumbnail is required"],
     },
-    enrolledStudents: [
-      {
-        student: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
+    enrolledStudents: {
+      type: [
+        {
+          student: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+          rating: {
+            type: Number,
+            min: 1,
+            max: 5,
+          },
         },
-        rating: {
-          type: Number,
-          min: 1,
-          max: 5,
-        },
-      },
-    ],
-    lectures: [
-      {
-        lecture: {
+      ],
+      default: [],
+    },
+    lectures: {
+      type: [
+        {
           type: mongoose.Schema.Types.ObjectId,
           ref: "Lecture",
         },
-      },
-    ],
+      ],
+      default: [],
+    },
     instructor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -132,28 +140,37 @@ const courseSchema = new mongoose.Schema<
     },
   },
   {
+    id: false,
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
   },
 );
 
+courseSchema.index({ slug: "text" });
+
 courseSchema.pre("save", function (this: TCourseDoc) {
-  if (this.lectures) {
+  if (this.isModified("lectures") && this.lectures) {
     this.totalLectures = this.lectures.length;
   }
 });
 
+courseSchema.pre("validate", function (this: TCourseDoc) {
+  if (this.isModified("title")) {
+    this.slug = this.title.trim().toLowerCase().replace(/ /g, "-");
+  }
+});
+
 courseSchema.virtual("averageRating").get(function (this: TCourseDoc) {
+  if (!this.enrolledStudents || this.enrolledStudents.length === 0) return 0;
   const ratedStudents = this.enrolledStudents.filter(
-    (student): student is typeof student & { rating: number } =>
-      !!student.rating,
+    (student) => student.rating !== undefined,
   );
 
   if (ratedStudents.length === 0) return 0;
 
   const totalRating = ratedStudents.reduce(
-    (sum, student) => sum + student.rating,
+    (sum, student) => sum + student.rating!,
     0,
   );
   return Math.round((totalRating / ratedStudents.length) * 10) / 10;
