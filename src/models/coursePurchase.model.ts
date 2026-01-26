@@ -23,13 +23,13 @@ export interface ICoursePurchase {
   refundAmount?: number;
   refundReason?: string;
   metadata?: Map<string, string>;
-  createdAt: Date;
-  updatedAt: Date;
+  // createdAt: Date;
+  // updatedAt: Date;
 }
 
 export interface ICoursePurchaseMethods {
   isRefundable(): boolean;
-  processRefund(amount: number, reason: string): Promise<Document>;
+  processRefund(amount: number, reason: string): Promise<void>;
 }
 
 export interface ICoursePurchaseVirtuals {}
@@ -43,7 +43,9 @@ export type TCoursePurchaseModel = mongoose.Model<
 
 export type TCoursePurchaseDoc = HydratedDocument<
   ICoursePurchase,
-  ICoursePurchaseMethods
+  ICoursePurchaseMethods,
+  {},
+  ICoursePurchaseVirtuals
 >;
 
 const coursePurchaseSchema = new mongoose.Schema<
@@ -125,7 +127,7 @@ coursePurchaseSchema.methods.isRefundable = function (
   return this.createdAt > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days
 };
 
-coursePurchaseSchema.methods.processRefund = function (
+coursePurchaseSchema.methods.processRefund = async function (
   this: TCoursePurchaseDoc,
   amount: number,
   reason: string,
@@ -133,7 +135,7 @@ coursePurchaseSchema.methods.processRefund = function (
   this.status = PaymentStatus.REFUNDED;
   this.refundAmount = amount || this.amount;
   this.refundReason = reason;
-  return this.save();
+  await this.save();
 };
 
 export const CoursePurchase = mongoose.model<

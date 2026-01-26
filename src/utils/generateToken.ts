@@ -4,15 +4,10 @@ import type { Response } from "express";
 
 const generateToken = (res: Response, userId: string, message: string) => {
   try {
-    const token = jwt.sign(
-      {
-        userId,
-      },
-      process.env.JWT_SECRET as string,
-      {
-        expiresIn: "1d",
-      },
-    );
+    const payload = { userId };
+    const token = jwt.sign(payload, process.env.JWT_SECRET as string, {
+      expiresIn: "1d",
+    });
     res
       .status(200)
       .cookie("token", token, {
@@ -22,9 +17,11 @@ const generateToken = (res: Response, userId: string, message: string) => {
         maxAge: 24 * 60 * 60 * 1000,
       })
       .json({
-        message,
         success: true,
-        token,
+        message,
+        data: {
+          token,
+        },
       });
   } catch (error) {
     console.log(error);
@@ -32,4 +29,15 @@ const generateToken = (res: Response, userId: string, message: string) => {
   }
 };
 
-export { generateToken };
+const verifyJWTToken = (token: string): TokenPayload => {
+  if (!token) {
+    throw new Error("No token found");
+  }
+
+  const decodedPayload = jwt.verify(token, process.env.JWT_SECRET as string);
+  if (typeof decodedPayload === "string") {
+    throw new Error("Invalid token structure");
+  }
+  return decodedPayload as TokenPayload;
+};
+export { generateToken, verifyJWTToken };

@@ -10,10 +10,12 @@ export enum SourceType {
 }
 
 export function validator(source: SourceType, schema: z.ZodType) {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, _: Response, next: NextFunction) => {
     try {
+      // console.log(req[source]);
       const data = schema.parse(req[source]);
       Object.assign(req[source], data);
+      next();
     } catch (err) {
       if (err instanceof z.ZodError) {
         const message = err.issues.map((error) => error.message).join(", ");

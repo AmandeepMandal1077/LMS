@@ -99,22 +99,22 @@ const courseProgressSchema = new mongoose.Schema<
   },
 );
 
-courseProgressSchema.pre(
-  "save",
-  function (this: TCourseProgressDoc, next: any) {
-    if (this.lectureProgress) {
-      this.completionPercentage =
-        Math.round(
-          this.lectureProgress.filter((lecture) => lecture.isCompleted).length /
-            this.lectureProgress.length,
-        ) * 100;
+courseProgressSchema.index({
+  user: 1,
+  course: 1,
+});
 
-      this.isCompleted = this.completionPercentage === 100;
-    }
+courseProgressSchema.pre("save", function (this: TCourseProgressDoc) {
+  if (this.lectureProgress) {
+    this.completionPercentage = Math.round(
+      (this.lectureProgress.filter((lecture) => lecture.isCompleted).length /
+        this.lectureProgress.length) *
+        100,
+    );
 
-    return next();
-  },
-);
+    this.isCompleted = this.completionPercentage === 100;
+  }
+});
 
 courseProgressSchema.methods.updateLastAccessed = async function (
   this: TCourseProgressDoc,
